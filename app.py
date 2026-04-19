@@ -4,7 +4,7 @@ from PyPDF2 import PdfReader
 import os
 from dotenv import load_dotenv
 
-# 1. Configuration & Setup
+# ------------------ 1. CONFIGURATION ------------------ #
 api_key = st.secrets.get("GEMINI_API_KEY")
 
 if not api_key:
@@ -15,13 +15,41 @@ if not api_key:
     st.error("❌ Missing API Key! Add GEMINI_API_KEY in Secrets or .env")
     st.stop()
 
-# Configure API
 genai.configure(api_key=api_key)
 
-# ✅ FIXED MODEL NAME (No '-latest')
-model = genai.GenerativeModel("gemini-1.5-flash")
+# ------------------ 2. GET WORKING MODEL ------------------ #
+def get_working_model():
+    try:
+        models = genai.list_models()
+        valid_models = [
+            m.name for m in models
+            if "generateContent" in m.supported_generation_methods
+        ]
 
-# 2. Helper Function: Extract Text from PDF
+        if not valid_models:
+            return None
+
+        # Prefer Gemini models if available
+        for name in valid_models:
+            if "gemini" in name.lower():
+                return name
+
+        return valid_models[0]
+
+    except Exception as e:
+        st.error(f"Error fetching models: {e}")
+        return None
+
+
+model_name = get_working_model()
+
+if not model_name:
+    st.error("❌ No supported models available for your API key.")
+    st.stop()
+
+model = genai.GenerativeModel(model_name)
+
+# ------------------ 3. PDF TEXT EXTRACTION ------------------ #
 def extract_text_from_pdf(pdf_file):
     try:
         reader = PdfReader(pdf_file)
@@ -35,50 +63,50 @@ def extract_text_from_pdf(pdf_file):
         st.error(f"Error reading PDF: {e}")
         return ""
 
-# 3. Streamlit UI
+# ------------------ 4. UI ------------------ #
 st.set_page_config(page_title="AI Student Analyzer", layout="wide")
 st.title("📊 Student Performance Analysis System")
 st.markdown("---")
 
-# Sidebar
 with st.sidebar:
-    st.header("📂 Document Upload")
+    st.header("📂 Upload Files")
+    st.success(f"Using Model: {model_name}")
+
     marksheet_pdf = st.file_uploader("Upload Marksheet (PDF)", type="pdf")
     syllabus_pdf = st.file_uploader("Upload Syllabus (PDF)", type="pdf")
 
-    # Debug tool
     if st.checkbox("Show Supported Models"):
         try:
-            models = [
-                m.name for m in genai.list_models()
-                if "generateContent" in m.supported_generation_methods
-            ]
-            st.write(models)
+            models = genai.list_models()
+            for m in models:
+                if "generateContent" in m.supported_generation_methods:
+                    st.write(m.name)
         except Exception as e:
-            st.write("Error fetching models:", e)
+            st.write("Error:", e)
 
-    st.info("Ensure PDFs are text-based (not scanned images).")
+    st.info("PDF must be text-based (not scanned).")
     analyze_btn = st.button("Generate AI Analysis ✨", use_container_width=True)
 
-# 4. Main Logic
+# ------------------ 5. MAIN LOGIC ------------------ #
 if analyze_btn:
+
     if not (marksheet_pdf and syllabus_pdf):
         st.warning("⚠️ Please upload both files.")
         st.stop()
 
     with st.spinner("🤖 AI is analyzing your data..."):
+
         marks_text = extract_text_from_pdf(marksheet_pdf)
         syllabus_text = extract_text_from_pdf(syllabus_pdf)
 
         if len(marks_text) < 20:
-            st.error("❌ Marksheet text extraction failed (maybe scanned PDF).")
+            st.error("❌ Could not extract text from marksheet.")
             st.stop()
 
-        # Prompt
         prompt = f"""
         Act as an expert Academic Counselor.
 
-        Analyze the following:
+        Analyze the following data:
 
         [MARKSHEET DATA]
         {marks_text[:4000]}
@@ -86,7 +114,7 @@ if analyze_btn:
         [SYLLABUS DATA]
         {syllabus_text[:4000]}
 
-        Give response in Markdown:
+        Provide output in Markdown:
 
         1. Performance Summary
         2. Gap Analysis
@@ -104,4 +132,4 @@ if analyze_btn:
 
         except Exception as e:
             st.error(f"❌ API Error: {e}")
-            st.info("Tip: Enable 'Show Supported Models' to verify model name.")
+            st.info("Tip: Enable 'Show Supported Models' to debug.")
