@@ -4,8 +4,7 @@ from PyPDF2 import PdfReader
 import os
 from dotenv import load_dotenv
 
-# 1. Configuration & Setup (Hybrid Secret Handling)
-# This checks for Streamlit Secrets first (Cloud), then falls back to .env (Local)
+# 1. Configuration & Setup
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
     load_dotenv()
@@ -13,8 +12,8 @@ if not api_key:
 
 if api_key:
     genai.configure(api_key=api_key)
-    # Using 'gemini-1.5-flash' which is highly stable for text analysis
-    model = genai.GenerativeModel('gemini-3-flash')
+    # Using 'gemini-1.5-flash' which is the current stable industry standard
+    model = genai.GenerativeModel('gemini-1.5-flash')
 else:
     st.error("Missing API Key! Please add GEMINI_API_KEY to Secrets or .env file.")
     st.stop()
@@ -43,6 +42,15 @@ with st.sidebar:
     st.header("📂 Document Upload")
     marksheet_pdf = st.file_uploader("Upload Marksheet (PDF)", type="pdf")
     syllabus_pdf = st.file_uploader("Upload Syllabus (PDF)", type="pdf")
+    
+    # DEBUG TOOL: This will show you what models your key can actually see
+    if st.checkbox("Show Supported Models"):
+        try:
+            models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+            st.write(models)
+        except:
+            st.write("Could not list models. Check API Key.")
+            
     st.info("Ensure PDFs are digital text-based, not scanned images.")
     analyze_btn = st.button("Generate AI Analysis ✨", use_container_width=True)
 
@@ -56,10 +64,11 @@ if analyze_btn:
             
             # Validation: Stop if extraction failed
             if not marks_text or len(marks_text) < 20:
-                st.error("Could not extract enough text from the Marksheet. Please check the file.")
+                st.error("Could not extract enough text from the Marksheet. Is it a scanned image?")
                 st.stop()
             
-            # 5. The AI Prompt (Truncated to avoid API 'InvalidArgument' errors)
+            # 5. The AI Prompt
+            # Truncating to 5000 characters prevents 'InvalidArgument'/400 errors
             prompt = f"""
             Act as an expert Academic Counselor. 
             Analyze the following Marksheet data against the Syllabus provided.
@@ -89,6 +98,6 @@ if analyze_btn:
                 
             except Exception as e:
                 st.error(f"AI API Error: {str(e)}")
-                st.info("Check if your API Key is valid or if the model name is correct for your region.")
+                st.info("Tip: If you see a 404, check the 'Show Supported Models' box in the sidebar to find the correct model name.")
     else:
         st.warning("⚠️ Please upload both files to continue.")
