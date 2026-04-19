@@ -13,7 +13,7 @@ if not api_key:
 if api_key:
     genai.configure(api_key=api_key)
     # Using 'gemini-1.5-flash' which is the current stable industry standard
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
 else:
     st.error("Missing API Key! Please add GEMINI_API_KEY to Secrets or .env file.")
     st.stop()
