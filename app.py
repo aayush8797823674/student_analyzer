@@ -14,7 +14,7 @@ if not api_key:
 if api_key:
     genai.configure(api_key=api_key)
     # Using 'gemini-1.5-flash' which is highly stable for text analysis
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-3-flash')
 else:
     st.error("Missing API Key! Please add GEMINI_API_KEY to Secrets or .env file.")
     st.stop()
